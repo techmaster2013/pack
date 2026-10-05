@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 
 # Pack is a user program. System package managers ask for sudo only when needed.
-"$PYTHON" -m pip install --user --upgrade --force-reinstall "$REPO_DIR"
+"$PYTHON" -m pip install --user --break-system-packages --upgrade --force-reinstall "$REPO_DIR"
 
 USER_BIN="$HOME/.local/bin"
 if [[ ":$PATH:" != *":$USER_BIN:"* ]]; then
