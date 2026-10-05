@@ -2,11 +2,13 @@
 
 Pack is a multi-package-manager frontend for Linux — basically the Bedrock Linux idea, but for package managers.
 
+### Pack is experimental system software. Test it somewhere disposable before trusting it on an important machine.
+
 > DO NOT RUN AS ROOT!!!
 
 ## Managers
 
-Pack supports apt, dnf, Flatpak/Flathub, pacman, pip, Nix, and apk.
+Pack supports apt, dnf, flathub, pacman, pip, nix, apk, npm, snap, cargo, gem, and brew.
 
 The host distro manager stays native. Foreign distro ecosystems (apt, dnf, pacman, apk) run in persistent Pack-managed Podman environments, so Fedora/Arch/Alpine/Debian packages don't overwrite the host's `/usr` or package database. Flatpak, Nix, and pip use their normal host ecosystem.
 
@@ -45,5 +47,3 @@ Pacman synchronization uses a full `pacman -Syu` rather than an unsupported part
 ## Adding managers
 
 Manager definitions live in `pack/managers.py`. Runtime isolation lives in `pack/environments.py`, while first-time provisioning/fallback logic lives in `pack/bootstrap.py`.
-
-Pack v0.1 is experimental system software. Test it somewhere disposable before trusting it on an important machine.
