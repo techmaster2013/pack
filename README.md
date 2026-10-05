@@ -1,41 +1,47 @@
 # Pack 📦
 
-Pack is a package manager frontend for Linux. It's the Bedrock Linux of package managers.
+Pack is a multi-package-manager frontend for Linux — basically the Bedrock Linux idea, but for package managers.
 
-Pack gives multiple package ecosystems one interface while keeping foreign distro package managers isolated from the host system.
+## Managers
 
-## v0.1
+Pack supports apt, dnf, Flatpak/Flathub, pacman, pip, Nix, and apk.
 
-Initial package managers:
+The host distro manager stays native. Foreign distro ecosystems (apt, dnf, pacman, apk) run in persistent Pack-managed Podman environments, so Fedora/Arch/Alpine/Debian packages don't overwrite the host's `/usr` or package database. Flatpak, Nix, and pip use their normal host ecosystem.
 
-- apt
-- dnf
-- Flatpak / Flathub
-- pacman
-- pip
-- Nix
-- apk
+## Install Pack
 
-The installer asks which managers you want Pack to configure. Once setup finishes, Pack immediately syncs every enabled manager.
+Clone the repo and run:
+
+```bash
+sudo bash installer/install.sh
+```
+
+The installer installs Pack and immediately starts `pack setup`.
+
+## Commands
 
 ```bash
 sudo pack setup
 sudo pack sync
-sudo pack managers
-sudo pack search fastfetch
+pack managers
+pack search fastfetch
 sudo pack install fastfetch
+sudo pack remove fastfetch
+pack list
 ```
 
-`sudo pack sync` updates/syncs every enabled package manager.
+During setup, choose managers by number or enter `all`. Pack tries the native package manager first when it needs a dependency, then other usable package managers. Foreign distro managers are provisioned as isolated environments. Setup finishes by syncing every manager that is ready.
 
-`sudo pack install <package>` searches every enabled manager, lets you choose a source, syncs that manager, then starts the real underlying package manager so its normal output remains visible.
+`pack install <package>` searches every enabled ecosystem and asks which result to use. Pack syncs that ecosystem immediately before installation and streams the real package manager output.
 
-## Architecture
+## Isolation
 
-The host distro's package manager can run natively. Foreign distro package managers are intended to run in Pack-managed isolated environments so they do not overwrite the host distro's system files.
+On a Debian-family host, for example, apt remains native while dnf gets Fedora, pacman gets Arch Linux, and apk gets Alpine environments. Pack installs Podman through the native package manager when isolation is required and Podman is missing.
 
-Each ecosystem is implemented as an adapter, making new package managers easy to add later.
+Pacman synchronization uses a full `pacman -Syu` rather than an unsupported partial-upgrade workflow.
 
-## Status
+## Adding managers
 
-Pack is in very early development. The current code is the v0.1 CLI foundation; isolation/bootstrap support for foreign distro managers is still being built.
+Manager definitions live in `pack/managers.py`. Runtime isolation lives in `pack/environments.py`, while first-time provisioning/fallback logic lives in `pack/bootstrap.py`.
+
+Pack v0.1 is experimental system software. Test it somewhere disposable before trusting it on an important machine.
