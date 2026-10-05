@@ -5,13 +5,11 @@ from .bootstrap import bootstrap_selected
 from .config import load_config, save_config
 from .managers import MANAGERS
 REPO="https://github.com/techmaster2013/pack.git"
-
 def require_root():
  if hasattr(os,"geteuid") and os.geteuid()!=0: raise SystemExit("Pack needs root. Try again with sudo.")
 def distro_id():
- p=Path("/etc/os-release")
+ p=Path("/etc/os-release"); v={}
  if not p.exists(): return platform.system().lower()
- v={}
  for line in p.read_text(errors="ignore").splitlines():
   if "=" in line: k,x=line.split("=",1); v[k]=x.strip().strip('"')
  return v.get("ID","unknown").lower()
@@ -20,10 +18,8 @@ def detect_native_manager():
 def enabled(c): return [MANAGERS[n] for n in c.get("enabled_managers",[]) if n in MANAGERS]
 def ensure_setup(c):
  if not c.get("setup_complete"): raise SystemExit("Pack hasn't been set up. Run: sudo pack setup")
-
 def setup():
- require_root(); native=detect_native_manager(); names=list(MANAGERS)
- print(f"Pack setup 📦\nHost distro: {distro_id()}\nNative package manager: {native or 'unknown'}\n\nChoose managers by number, or 'all'.")
+ require_root(); native=detect_native_manager(); names=list(MANAGERS); print(f"Pack setup 📦\nHost distro: {distro_id()}\nNative package manager: {native or 'unknown'}\n\nChoose managers by number, or 'all'.")
  for i,n in enumerate(names,1): print(f"{i}. {n}"+(" (native)" if n==native else ""))
  raw=input("\nManagers: ").strip().lower(); chosen=names[:] if raw=="all" else []
  if raw!="all":
@@ -34,7 +30,6 @@ def setup():
  if not chosen: return print("No managers selected.")
  failed=bootstrap_selected(chosen,native); c={"enabled_managers":chosen,"native_manager":native,"setup_complete":True,"bootstrap_failed":failed}; save_config(c); sync_all(c,True)
  if failed: print("Unavailable: "+", ".join(failed))
-
 def sync_all(c=None,skip_unavailable=False):
  require_root(); c=c or load_config(); ensure_setup(c); native=c.get("native_manager"); failed=[]; items=enabled(c)
  for i,m in enumerate(items,1):
@@ -45,12 +40,10 @@ def sync_all(c=None,skip_unavailable=False):
   if m.sync(native): failed.append(m.name)
  if failed and not skip_unavailable: raise SystemExit("Sync problems: "+", ".join(failed))
  print("Pack sync complete.")
-
 def show_managers():
  c=load_config(); ensure_setup(c); native=c.get("native_manager"); print("MANAGER     TYPE        STATUS")
  for n in c.get("enabled_managers",[]):
-  m=MANAGERS[n]; typ="native" if n==native else ("isolated" if n in {"apt","dnf","pacman","apk"} else "universal")
-  print(f"{n:<11} {typ:<11} {'ready' if m.available(native) else 'failed'}")
+  m=MANAGERS[n]; typ="native" if n==native else ("isolated" if n in {"apt","dnf","pacman","apk"} else "universal"); print(f"{n:<11} {typ:<11} {'ready' if m.available(native) else 'failed'}")
 def find_matches(pkg,c):
  native=c.get("native_manager"); found=[]; print(f"Searching for “{pkg}”…")
  for m in enabled(c):
@@ -82,3 +75,24 @@ def list_packages():
  c=load_config(); ensure_setup(c); native=c.get("native_manager")
  for m in enabled(c):
   if m.available(native): print(f"\n=== {m.name} ==="); m.list_installed(native)
+def update_pack():
+ require_root(); print("Checking GitHub for Pack updates… 📦")
+ with tempfile.TemporaryDirectory(prefix="pack-update-") as tmp:
+  src=Path(tmp)/"pack"
+  if subprocess.call(["git","clone","--depth","1",REPO,str(src)]): raise SystemExit("Couldn't download the latest Pack.")
+  cmd=["python3","-m","pip","install","--upgrade","--break-system-packages",str(src)]
+  code=subprocess.call(cmd)
+  if code: code=subprocess.call(["python3","-m","pip","install","--upgrade",str(src)])
+  if code: raise SystemExit("Pack update failed.")
+ print("✓ Pack is updated to the latest main branch.")
+def build_parser():
+ p=argparse.ArgumentParser(prog="pack",description="One command for many package managers"); p.add_argument("--version",action="version",version="Pack 0.1.0"); sub=p.add_subparsers(dest="command")
+ for n,h in (("setup","configure Pack"),("sync","sync all managers"),("managers","show managers"),("list","list packages"),("update","update Pack from GitHub")): sub.add_parser(n,help=h)
+ for n in ("search","install","remove"): q=sub.add_parser(n); q.add_argument("package")
+ return p
+def main():
+ p=build_parser(); a=p.parse_args(); simple={"setup":setup,"sync":sync_all,"managers":show_managers,"list":list_packages,"update":update_pack}
+ if a.command in simple: simple[a.command]()
+ elif a.command in {"search","install","remove"}: globals()[a.command](a.package)
+ else: p.print_help()
+if __name__=="__main__": main()
