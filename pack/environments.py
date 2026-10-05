@@ -2,14 +2,24 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-from pathlib import Path
+from dataclasses import dataclass
 
-ROOT = Path("/var/lib/pack/roots")
-DISTRO_FOR_MANAGER = {"apt": "debian", "dnf": "fedora", "pacman": "archlinux", "apk": "alpine"}
+IMAGES = {
+    "apt": "docker.io/library/debian:stable",
+    "dnf": "docker.io/library/fedora:latest",
+    "pacman": "docker.io/library/archlinux:latest",
+    "apk": "docker.io/library/alpine:latest",
+}
+
+
+@dataclass
+class Result:
+    returncode: int
+    stdout: str = ""
 
 
 def needs_isolation(name: str, native: str | None) -> bool:
-    return name in DISTRO_FOR_MANAGER and name != native
+    return name in IMAGES and name != native
 
 
 def environment_name(manager: str) -> str:
@@ -19,34 +29,34 @@ def environment_name(manager: str) -> str:
 def environment_ready(manager: str) -> bool:
     if not shutil.which("podman"):
         return False
-    result = subprocess.run(
+    return subprocess.run(
         ["podman", "container", "exists", environment_name(manager)],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-    )
-    return result.returncode == 0
+    ).returncode == 0
 
 
 def create_environment(manager: str) -> bool:
-    distro = DISTRO_FOR_MANAGER[manager]
-    ROOT.mkdir(parents=True, exist_ok=True)
     if environment_ready(manager):
         return True
     if not shutil.which("podman"):
         return False
-    print(f"  creating isolated {distro} environment for {manager}…")
-    # A persistent container gives each foreign manager its own /usr, database,
-    # repositories and dependency graph instead of mixing them into the host.
-    cmd = [
+    image = IMAGES[manager]
+    print(f"  creating isolated {manager} environment from {image}…")
+    if subprocess.call(["podman", "pull", image]) != 0:
+        return False
+    return subprocess.call([
         "podman", "create", "--name", environment_name(manager),
-        "--network", "host", f"docker.io/library/{distro}:latest", "sleep", "infinity",
-    ]
-    return subprocess.call(cmd) == 0
+        "--network", "host", image, "sleep", "infinity",
+    ]) == 0
 
 
-def run(manager: str, args: list[str]) -> int:
-    name = environment_name(manager)
+def run(manager: str, args: list[str], capture: bool = False):
     if not environment_ready(manager) and not create_environment(manager):
-        return 1
-    subprocess.call(["podman", "start", name], stdout=subprocess.DEVNULL)
-    return subprocess.call(["podman", "exec", "-i", name, *args])
+        return Result(1) if capture else 1
+    name = environment_name(manager)
+    subprocess.call(["podman", "start", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    command = ["podman", "exec", "-i", name, *args]
+    if capture:
+        return subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    return subprocess.call(command)
