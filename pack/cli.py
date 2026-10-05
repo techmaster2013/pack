@@ -78,7 +78,7 @@ def update_pack():
  with tempfile.TemporaryDirectory(prefix="pack-update-") as tmp:
   src=Path(tmp)/"pack"
   if subprocess.call(["git","clone","--depth","1",REPO,str(src)]): raise SystemExit("Couldn't download the latest Pack.")
-  cmd=["python3","-m","pip","install","--user","--upgrade","--force-reinstall",str(src)]
+  cmd=["python3","-m","pip","install","--user","--break-system-packages","--upgrade","--force-reinstall",str(src)]
   code=subprocess.call(cmd)
   if code: raise SystemExit("Pack update failed.")
  print("✓ Pack is updated to the latest main branch.")
