@@ -83,7 +83,7 @@ def update_pack():
   if code: raise SystemExit("Pack update failed.")
  print("✓ Pack is updated to the latest main branch.")
 def build_parser():
- p=argparse.ArgumentParser(prog="pack",description="One command for many package managers"); p.add_argument("--version",action="version",version="Pack 0.1.0"); sub=p.add_subparsers(dest="command")
+ p=argparse.ArgumentParser(prog="pack",description="One command for many package managers"); p.add_argument("--version",action="version",version="Pack 1"); sub=p.add_subparsers(dest="command")
  for n,h in (("setup","configure Pack"),("sync","sync all managers"),("managers","show managers"),("list","list packages"),("update","update Pack from GitHub")): sub.add_parser(n,help=h)
  for n in ("search","install","remove"): q=sub.add_parser(n); q.add_argument("package")
  return p
