@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
-  echo "run this installer with sudo"
-  exit 1
-fi
-
 PYTHON=${PYTHON:-python3}
 if ! command -v "$PYTHON" >/dev/null 2>&1; then
   echo "python3 is required before installing Pack"
@@ -15,9 +10,16 @@ fi
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 
-"$PYTHON" -m pip install --break-system-packages "$REPO_DIR" 2>/dev/null || "$PYTHON" -m pip install "$REPO_DIR"
+# Pack is a user program. System package managers ask for sudo only when needed.
+"$PYTHON" -m pip install --user --upgrade --force-reinstall "$REPO_DIR"
+
+USER_BIN="$HOME/.local/bin"
+if [[ ":$PATH:" != *":$USER_BIN:"* ]]; then
+  export PATH="$USER_BIN:$PATH"
+  echo "note: add $USER_BIN to PATH if 'pack' is not found in a new terminal"
+fi
 
 echo
 echo "Pack installed 📦"
-echo "Pack setup will install the dependencies needed by the package managers you select."
+echo "Pack setup will ask for sudo only when a selected manager needs system access."
 pack setup
