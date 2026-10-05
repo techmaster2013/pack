@@ -1,5 +1,5 @@
 from __future__ import annotations
-import shutil, subprocess
+import os, shutil, subprocess
 from . import environments
 from .managers import MANAGERS, Manager
 
@@ -22,6 +22,14 @@ def ensure_podman(native):
  if native in MANAGERS and try_package(MANAGERS[native],"podman") and shutil.which("podman"): return True
  return False
 
+def bootstrap_brew()->bool:
+ print("  package managers don't provide Homebrew; running the official Homebrew installer…")
+ env=os.environ.copy(); env["NONINTERACTIVE"]="1"
+ code=subprocess.call(["/bin/bash","-c",'$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)'],env=env)
+ # Homebrew's Linux installer normally places brew here before it is added to PATH.
+ brew="/home/linuxbrew/.linuxbrew/bin/brew"
+ return code==0 and (shutil.which("brew") is not None or os.path.exists(brew))
+
 def bootstrap_manager(target,native):
  manager=MANAGERS[target]
  if environments.needs_isolation(target,native):
@@ -32,6 +40,7 @@ def bootstrap_manager(target,native):
  for name,candidate in MANAGERS.items():
   if name not in {native,target} and try_package(candidate,target) and manager.host_available(): return True
  if target=="pip": return subprocess.call(["python3","-m","ensurepip","--upgrade"])==0
+ if target=="brew": return bootstrap_brew()
  print(f"✗ couldn't bootstrap {target}"); return False
 
 def bootstrap_selected(selected,native):
