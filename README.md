@@ -2,6 +2,8 @@
 
 Pack is a multi-package-manager frontend for Linux — basically the Bedrock Linux idea, but for package managers.
 
+> DO NOT RUN AS ROOT!!!
+
 ## Managers
 
 Pack supports apt, dnf, Flatpak/Flathub, pacman, pip, Nix, and apk.
@@ -13,7 +15,7 @@ The host distro manager stays native. Foreign distro ecosystems (apt, dnf, pacma
 Clone the repo and run:
 
 ```bash
-sudo bash installer/install.sh
+bash installer/install.sh
 ```
 
 The installer installs Pack and immediately starts `pack setup`.
@@ -21,12 +23,12 @@ The installer installs Pack and immediately starts `pack setup`.
 ## Commands
 
 ```bash
-sudo pack setup
-sudo pack sync
+pack setup
+pack sync
 pack managers
 pack search fastfetch
-sudo pack install fastfetch
-sudo pack remove fastfetch
+pack install fastfetch
+pack remove fastfetch
 pack list
 ```
 
