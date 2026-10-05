@@ -6,6 +6,8 @@ Pack is a multi-package-manager frontend for Linux — basically the Bedrock Lin
 
 > DO NOT RUN AS ROOT!!!
 
+Pack has been tested on Zorin OS Core, x86_64
+
 ## Managers
 
 Pack supports apt, dnf, flathub, pacman, pip, nix, apk, npm, snap, cargo, gem, and brew.
