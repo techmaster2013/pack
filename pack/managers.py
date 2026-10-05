@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 from . import environments
 
-
 @dataclass(frozen=True)
 class Manager:
     name: str
@@ -22,11 +21,13 @@ class Manager:
         return shutil.which(self.binary) is not None
 
     def available(self, native: str | None = None) -> bool:
-        if environments.needs_isolation(self.name, native):
-            return environments.environment_ready(self.name)
-        return self.host_available()
+        return environments.environment_ready(self.name) if environments.needs_isolation(self.name, native) else self.host_available()
 
     def _run(self, command: list[str], native: str | None = None, capture: bool = False):
+        if not command:
+            if capture:
+                return subprocess.CompletedProcess([], 0, "", "")
+            return 0
         if environments.needs_isolation(self.name, native):
             return environments.run(self.name, command, capture=capture)
         if capture:
@@ -41,7 +42,9 @@ class Manager:
         return self._run(list(self.sync_cmd), native)
 
     def install(self, package: str, native: str | None = None) -> int:
-        return self._run([*self.install_cmd, package], native)
+        cmd=[*self.install_cmd, package]
+        if self.name == "nix": cmd=[*self.install_cmd, f"nixpkgs#{package}"]
+        return self._run(cmd, native)
 
     def remove(self, package: str, native: str | None = None) -> int:
         return self._run([*self.remove_cmd, package], native)
@@ -49,13 +52,12 @@ class Manager:
     def list_installed(self, native: str | None = None) -> int:
         return self._run(list(self.list_cmd), native)
 
-
 MANAGERS: dict[str, Manager] = {
-    "apt": Manager("apt", "apt", ("apt-cache", "search", "--names-only"), ("apt", "update"), ("apt", "install"), ("apt", "remove"), ("dpkg-query", "-W"), ("debian", "ubuntu", "linuxmint", "pop", "zorin")),
-    "dnf": Manager("dnf", "dnf", ("dnf", "search"), ("dnf", "makecache", "--refresh"), ("dnf", "install"), ("dnf", "remove"), ("dnf", "list", "installed"), ("fedora", "rhel", "centos")),
-    "flatpak": Manager("flatpak", "flatpak", ("flatpak", "search"), ("flatpak", "update", "--appstream"), ("flatpak", "install", "flathub"), ("flatpak", "uninstall"), ("flatpak", "list")),
-    "pacman": Manager("pacman", "pacman", ("pacman", "-Ss"), ("pacman", "-Syu", "--noconfirm"), ("pacman", "-S"), ("pacman", "-R"), ("pacman", "-Q"), ("arch", "manjaro", "endeavouros")),
-    "pip": Manager("pip", "python3", ("python3", "-m", "pip", "index", "versions"), (), ("python3", "-m", "pip", "install"), ("python3", "-m", "pip", "uninstall", "-y"), ("python3", "-m", "pip", "list")),
-    "nix": Manager("nix", "nix", ("nix", "search", "nixpkgs"), ("nix-channel", "--update"), ("nix", "profile", "install"), ("nix", "profile", "remove"), ("nix", "profile", "list")),
-    "apk": Manager("apk", "apk", ("apk", "search"), ("apk", "update"), ("apk", "add"), ("apk", "del"), ("apk", "info"), ("alpine",)),
+    "apt": Manager("apt","apt",("apt-cache","search","--names-only"),("apt","update"),("apt","install"),("apt","remove"),("dpkg-query","-W"),("debian","ubuntu","linuxmint","pop","zorin")),
+    "dnf": Manager("dnf","dnf",("dnf","search"),("dnf","makecache","--refresh"),("dnf","install"),("dnf","remove"),("dnf","list","installed"),("fedora","rhel","centos")),
+    "flatpak": Manager("flatpak","flatpak",("flatpak","search"),("flatpak","update","--appstream"),("flatpak","install","flathub"),("flatpak","uninstall"),("flatpak","list")),
+    "pacman": Manager("pacman","pacman",("pacman","-Ss"),("pacman","-Syu","--noconfirm"),("pacman","-S","--needed","--noconfirm"),("pacman","-R","--noconfirm"),("pacman","-Q"),("arch","manjaro","endeavouros")),
+    "pip": Manager("pip","python3",("python3","-m","pip","index","versions"),(),("python3","-m","pip","install"),("python3","-m","pip","uninstall","-y"),("python3","-m","pip","list")),
+    "nix": Manager("nix","nix",("nix","search","nixpkgs"),("nix-channel","--update"),("nix","profile","install"),("nix","profile","remove"),("nix","profile","list")),
+    "apk": Manager("apk","apk",("apk","search"),("apk","update"),("apk","add"),("apk","del"),("apk","info"),("alpine",)),
 }
