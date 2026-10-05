@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 
-CONFIG_DIR = Path(os.environ.get("PACK_CONFIG_DIR", "/etc/pack"))
+CONFIG_DIR = Path(os.environ.get("PACK_CONFIG_DIR", Path.home() / ".config" / "pack"))
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 DEFAULT_CONFIG = {
