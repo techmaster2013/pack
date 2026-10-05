@@ -1,63 +1,38 @@
 from __future__ import annotations
-
-import shutil
-import subprocess
+import shutil, subprocess
 from dataclasses import dataclass
-
 from . import environments
 
 @dataclass(frozen=True)
 class Manager:
-    name: str
-    binary: str
-    search_cmd: tuple[str, ...]
-    sync_cmd: tuple[str, ...]
-    install_cmd: tuple[str, ...]
-    remove_cmd: tuple[str, ...]
-    list_cmd: tuple[str, ...]
-    native_distros: tuple[str, ...] = ()
-
-    def host_available(self) -> bool:
-        return shutil.which(self.binary) is not None
-
-    def available(self, native: str | None = None) -> bool:
-        return environments.environment_ready(self.name) if environments.needs_isolation(self.name, native) else self.host_available()
-
-    def _run(self, command: list[str], native: str | None = None, capture: bool = False):
-        if not command:
-            if capture:
-                return subprocess.CompletedProcess([], 0, "", "")
-            return 0
-        if environments.needs_isolation(self.name, native):
-            return environments.run(self.name, command, capture=capture)
-        if capture:
-            return subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    name:str; binary:str; search_cmd:tuple[str,...]; sync_cmd:tuple[str,...]; install_cmd:tuple[str,...]; remove_cmd:tuple[str,...]; list_cmd:tuple[str,...]; native_distros:tuple[str,...]=()
+    def host_available(self): return shutil.which(self.binary) is not None
+    def available(self,native=None): return environments.environment_ready(self.name) if environments.needs_isolation(self.name,native) else self.host_available()
+    def _run(self,command,native=None,capture=False):
+        if not command: return subprocess.CompletedProcess([],0,"","") if capture else 0
+        if environments.needs_isolation(self.name,native): return environments.run(self.name,command,capture=capture)
+        if capture: return subprocess.run(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
         return subprocess.call(command)
+    def search(self,pkg,native=None):
+        r=self._run([*self.search_cmd,pkg],native,True); return r.returncode==0 and bool(r.stdout.strip())
+    def sync(self,native=None): return self._run(list(self.sync_cmd),native)
+    def install(self,pkg,native=None):
+        if self.name=="nix": pkg=f"nixpkgs#{pkg}"
+        return self._run([*self.install_cmd,pkg],native)
+    def remove(self,pkg,native=None): return self._run([*self.remove_cmd,pkg],native)
+    def list_installed(self,native=None): return self._run(list(self.list_cmd),native)
 
-    def search(self, package: str, native: str | None = None) -> bool:
-        result = self._run([*self.search_cmd, package], native, capture=True)
-        return result.returncode == 0 and bool(result.stdout.strip())
-
-    def sync(self, native: str | None = None) -> int:
-        return self._run(list(self.sync_cmd), native)
-
-    def install(self, package: str, native: str | None = None) -> int:
-        cmd=[*self.install_cmd, package]
-        if self.name == "nix": cmd=[*self.install_cmd, f"nixpkgs#{package}"]
-        return self._run(cmd, native)
-
-    def remove(self, package: str, native: str | None = None) -> int:
-        return self._run([*self.remove_cmd, package], native)
-
-    def list_installed(self, native: str | None = None) -> int:
-        return self._run(list(self.list_cmd), native)
-
-MANAGERS: dict[str, Manager] = {
-    "apt": Manager("apt","apt",("apt-cache","search","--names-only"),("apt","update"),("apt","install"),("apt","remove"),("dpkg-query","-W"),("debian","ubuntu","linuxmint","pop","zorin")),
-    "dnf": Manager("dnf","dnf",("dnf","search"),("dnf","makecache","--refresh"),("dnf","install"),("dnf","remove"),("dnf","list","installed"),("fedora","rhel","centos")),
-    "flatpak": Manager("flatpak","flatpak",("flatpak","search"),("flatpak","update","--appstream"),("flatpak","install","flathub"),("flatpak","uninstall"),("flatpak","list")),
-    "pacman": Manager("pacman","pacman",("pacman","-Ss"),("pacman","-Syu","--noconfirm"),("pacman","-S","--needed","--noconfirm"),("pacman","-R","--noconfirm"),("pacman","-Q"),("arch","manjaro","endeavouros")),
-    "pip": Manager("pip","python3",("python3","-m","pip","index","versions"),(),("python3","-m","pip","install"),("python3","-m","pip","uninstall","-y"),("python3","-m","pip","list")),
-    "nix": Manager("nix","nix",("nix","search","nixpkgs"),("nix-channel","--update"),("nix","profile","install"),("nix","profile","remove"),("nix","profile","list")),
-    "apk": Manager("apk","apk",("apk","search"),("apk","update"),("apk","add"),("apk","del"),("apk","info"),("alpine",)),
+MANAGERS={
+ "apt":Manager("apt","apt",("apt-cache","search","--names-only"),("apt","update"),("apt","install","-y"),("apt","remove","-y"),("dpkg-query","-W"),("debian","ubuntu","linuxmint","pop","zorin")),
+ "dnf":Manager("dnf","dnf",("dnf","search"),("dnf","makecache","--refresh"),("dnf","install","-y"),("dnf","remove","-y"),("dnf","list","installed"),("fedora","rhel","centos")),
+ "flatpak":Manager("flatpak","flatpak",("flatpak","search"),("flatpak","update","--appstream"),("flatpak","install","-y","flathub"),("flatpak","uninstall","-y"),("flatpak","list")),
+ "pacman":Manager("pacman","pacman",("pacman","-Ss"),("pacman","-Syu","--noconfirm"),("pacman","-S","--needed","--noconfirm"),("pacman","-R","--noconfirm"),("pacman","-Q"),("arch","manjaro","endeavouros")),
+ "pip":Manager("pip","python3",("python3","-m","pip","index","versions"),(),("python3","-m","pip","install"),("python3","-m","pip","uninstall","-y"),("python3","-m","pip","list")),
+ "nix":Manager("nix","nix",("nix","search","nixpkgs"),("nix-channel","--update"),("nix","profile","install"),("nix","profile","remove"),("nix","profile","list")),
+ "apk":Manager("apk","apk",("apk","search"),("apk","update"),("apk","add"),("apk","del"),("apk","info"),("alpine",)),
+ "snap":Manager("snap","snap",("snap","find"),("snap","refresh"),("snap","install"),("snap","remove"),("snap","list")),
+ "brew":Manager("brew","brew",("brew","search"),("brew","update"),("brew","install"),("brew","uninstall"),("brew","list")),
+ "cargo":Manager("cargo","cargo",("cargo","search"),(),("cargo","install"),("cargo","uninstall"),("cargo","install","--list")),
+ "gem":Manager("gem","gem",("gem","search","-r"),(),("gem","install"),("gem","uninstall","-aIx"),("gem","list")),
+ "npm":Manager("npm","npm",("npm","search"),(),("npm","install","-g"),("npm","uninstall","-g"),("npm","list","-g","--depth=0")),
 }
