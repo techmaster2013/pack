@@ -1,69 +1,69 @@
 from __future__ import annotations
 
 import shutil
+import subprocess
 
+from . import environments
 from .managers import MANAGERS, Manager
 
-PACKAGE_NAMES: dict[str, dict[str, str]] = {
-    "apt": {"flatpak": "flatpak", "pip": "python3-pip", "nix": "nix-bin"},
-    "dnf": {"flatpak": "flatpak", "pip": "python3-pip", "nix": "nix"},
-    "pacman": {"flatpak": "flatpak", "pip": "python-pip", "nix": "nix"},
-    "apk": {"flatpak": "flatpak", "pip": "py3-pip"},
+PACKAGE_NAMES = {
+    "apt": {"dnf": "dnf", "flatpak": "flatpak", "pip": "python3-pip", "nix": "nix-bin", "podman": "podman"},
+    "dnf": {"flatpak": "flatpak", "pip": "python3-pip", "nix": "nix", "podman": "podman"},
+    "pacman": {"flatpak": "flatpak", "pip": "python-pip", "nix": "nix", "podman": "podman"},
+    "apk": {"pip": "py3-pip", "podman": "podman"},
 }
 
 
 def try_package(manager: Manager, target: str) -> bool:
     package = PACKAGE_NAMES.get(manager.name, {}).get(target)
-    if not package or not manager.available():
+    if not package or not manager.host_available():
         return False
     print(f"  trying {manager.name}: {package}")
-    if manager.sync() != 0:
+    if manager.sync(manager.name) != 0:
         return False
-    return manager.install(package) == 0 and MANAGERS[target].available()
+    return manager.install(package, manager.name) == 0
 
 
-def try_source(target: str) -> bool:
-    print(f"  no package manager could install {target}; source fallback selected")
-    if target == "pip":
-        import subprocess
-        code = subprocess.call(["python3", "-m", "ensurepip", "--upgrade"])
-        return code == 0 and MANAGERS[target].available()
-    print(f"  automatic source recipe for {target} is not implemented yet")
+def ensure_podman(native: str | None) -> bool:
+    if shutil.which("podman"):
+        return True
+    if native in MANAGERS and try_package(MANAGERS[native], "podman") and shutil.which("podman"):
+        return True
+    for name, manager in MANAGERS.items():
+        if name != native and try_package(manager, "podman") and shutil.which("podman"):
+            return True
     return False
 
 
 def bootstrap_manager(target: str, native: str | None) -> bool:
     manager = MANAGERS[target]
-    if manager.available():
+    if environments.needs_isolation(target, native):
+        if not ensure_podman(native):
+            print(f"✗ couldn't install Podman, required to isolate {target}")
+            return False
+        return environments.create_environment(target)
+    if manager.host_available():
         return True
-    print(f"\nInstalling {target}…")
-    tried: set[str] = set()
-    if native in MANAGERS and native != target:
-        tried.add(native)
-        if try_package(MANAGERS[native], target):
-            print(f"✓ installed {target} using native {native}")
+    if native in MANAGERS and native != target and try_package(MANAGERS[native], target):
+        if manager.host_available():
             return True
     for name, candidate in MANAGERS.items():
-        if name == target or name in tried:
-            continue
-        tried.add(name)
-        if try_package(candidate, target):
-            print(f"✓ installed {target} using {name}")
-            return True
-    if try_source(target):
-        print(f"✓ installed {target} from source")
-        return True
-    if target in {"apt", "dnf", "pacman", "apk"}:
-        print(f"✗ {target} needs Pack's isolated distro environment; refusing to attach foreign distro repositories to the host")
-    else:
-        print(f"✗ couldn't install {target}")
+        if name not in {native, target} and try_package(candidate, target):
+            if manager.host_available():
+                return True
+    if target == "pip":
+        print("  package managers failed; trying Python ensurepip…")
+        return subprocess.call(["python3", "-m", "ensurepip", "--upgrade"]) == 0
+    print(f"✗ package-manager and safe source/bootstrap methods failed for {target}")
     return False
 
 
 def bootstrap_selected(selected: list[str], native: str | None) -> list[str]:
-    failed: list[str] = []
-    order = sorted(selected, key=lambda name: name != native)
-    for name in order:
-        if not bootstrap_manager(name, native):
+    failed = []
+    for name in sorted(selected, key=lambda item: item != native):
+        print(f"\nPreparing {name}…")
+        if bootstrap_manager(name, native):
+            print(f"✓ {name} ready")
+        else:
             failed.append(name)
     return failed
